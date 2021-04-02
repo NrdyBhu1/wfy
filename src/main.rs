@@ -1,6 +1,7 @@
 use bevy::{
     prelude::*,
     render::pass::ClearColor,
+    app::AppExit,
 };
 
 #[derive(Debug, Clone)]
@@ -34,7 +35,8 @@ fn button_system(
         (Mutated<Interaction>, With<Button>),
     >,
     mut text_query: Query<&mut Text>,
-    mut app_state: ResMut<State<AppState>>
+    mut app_state: ResMut<State<AppState>>,
+    mut exit: ResMut<Events<AppExit>>,
 ) {
     for (interaction, mut material, children) in interaction_query.iter_mut() {
         let mut text = text_query.get_mut(children[0]).unwrap();
@@ -50,7 +52,7 @@ fn button_system(
                         app_state.set_next(AppState::Credits).unwrap();
                     }
                     AppState::Credits => {
-                        app_state.set_next(AppState::MainMenu).unwrap();
+                        exit.send(AppExit);
                     }
                 }
 
@@ -77,13 +79,13 @@ fn button_text (
         let mut text = text_query.get_mut(children[0]).unwrap();
         match app_state.current() {
             AppState::MainMenu => {
-                text.value = "Menu".to_string();
+                text.value = "In Menu".to_string();
             }
             AppState::InGame => {
-                text.value = "InGame".to_string();
+                text.value = "In Game".to_string();
             }
             AppState::Credits => {
-                text.value = "Credits".to_string();
+                text.value = "\t In \n Credits".to_string();
             }
         }
     }
