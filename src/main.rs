@@ -1,7 +1,15 @@
 use bevy::{
     prelude::*,
     render::pass::ClearColor,
+    app::AppExit,
 };
+
+#[derive(Debug, Clone)]
+enum AppState {
+    MainMenu,
+    InGame,
+    Credits,
+}
 
 struct ButtonMaterials {
     normal: Handle<ColorMaterial>,
@@ -27,21 +35,57 @@ fn button_system(
         (Mutated<Interaction>, With<Button>),
     >,
     mut text_query: Query<&mut Text>,
+    mut app_state: ResMut<State<AppState>>,
+    mut exit: ResMut<Events<AppExit>>,
 ) {
     for (interaction, mut material, children) in interaction_query.iter_mut() {
         let mut text = text_query.get_mut(children[0]).unwrap();
         match *interaction {
             Interaction::Clicked => {
-                text.value = "Press".to_string();
                 *material = button_materials.pressed.clone();
+
+                match app_state.current() {
+                    AppState::MainMenu => {
+                        app_state.set_next(AppState::InGame).unwrap();
+                    }
+                    AppState::InGame => {
+                        app_state.set_next(AppState::Credits).unwrap();
+                    }
+                    AppState::Credits => {
+                        exit.send(AppExit);
+                    }
+                }
+
             }
             Interaction::Hovered => {
-                text.value = "Hover".to_string();
                 *material = button_materials.hovered.clone();
             }
             Interaction::None => {
-                text.value = "Button".to_string();
                 *material = button_materials.normal.clone();
+            }
+        }
+    }
+}
+
+fn button_text (
+    mut interaction_query: Query<
+    (&Children),
+    (With<Button>),
+>,
+    mut text_query: Query<&mut Text>,
+    app_state: Res<State<AppState>>
+) {
+    for children in interaction_query.iter_mut() {
+        let mut text = text_query.get_mut(children[0]).unwrap();
+        match app_state.current() {
+            AppState::MainMenu => {
+                text.value = "In Menu".to_string();
+            }
+            AppState::InGame => {
+                text.value = "In Game".to_string();
+            }
+            AppState::Credits => {
+                text.value = "\t In \n Credits".to_string();
             }
         }
     }
@@ -85,19 +129,60 @@ fn setup(
         });
 }
 
+fn check_app_state(app_state: Res<State<AppState>>) {
+    match app_state.current() {
+        AppState::MainMenu => {
+            println!("In the main menu!");
+        }
+        AppState::InGame => {
+            println!("Playing the game!");
+        }
+        AppState::Credits => {
+            println!("Rolling the credits!");
+        }
+    }
+
+    if let Some(prev) = app_state.previous() {
+        println!("The previous app state was {:?}", prev);
+    }
+
+    if let Some(next) = app_state.next() {
+        println!("App state is about to be changed to {:?}", next);
+    }
+}
+
+
+
 fn main() {
+    // label for our state stage
+    static STATE: &str = "state";
+
     App::build()
-        .add_plugins(DefaultPlugins)
+
+        // add the app state resource; start in menu
+        .add_resource(State::new(AppState::MainMenu))
+
+        // add stage for the state-specific systems
+        // make it run before the main updates
+        .add_stage_before(
+            stage::UPDATE, STATE,
+            StateStage::<AppState>::default()
+        )
+
         .add_resource(WindowDescriptor {
             title: "Wfy!".to_string(),
-            width: 500.0,
+            width: 800.0,
             height: 500.0,
+            resizable: false,
             ..Default::default()
         })
-        .add_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
+        .add_plugins(DefaultPlugins)
+        .add_resource(ClearColor(Color::rgb(0.4, 0.4, 0.4)))
+        .add_system(check_app_state.system())
         .init_resource::<ButtonMaterials>()
         .add_startup_system(setup.system())
         .add_system(button_system.system())
+        .add_system(button_text.system())
         .run();
     println!("Hello, world!");
 }
